@@ -5,7 +5,7 @@
 ## Course Information
 - **Course Title**: Structured Programming with Lab
 - **Course Code**: CIS 122 & 122L
-- **Instructor**: [Instructor Name]
+- **Instructor**: Mr. Md. Faruk Hosen
 - **Department**: Department of Computing and Information Systems
 - **University**: Daffodil International University
 
