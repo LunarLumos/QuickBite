@@ -1,0 +1,302 @@
+#!/bin/bash
+
+DISHES_FILE="dishes.txt"
+ORDERS_FILE="orders.txt"
+
+ADMIN_USERNAME="admin"
+ADMIN_PASSWORD="password123"
+
+# check if an order exist
+order_exists() {
+    order_id=$1
+    # Check if the order ID exists in the orders file
+    if grep -q "^$order_id," "$ORDERS_FILE"; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Function to cancel an order
+cancel_order() {
+    echo "Enter the Order ID to cancel (e.g., O1, O2, O3):"
+    read order_id
+
+    order_id=$(echo "$order_id" | xargs)
+
+
+    if [[ ! "$order_id" =~ ^O ]]; then
+        order_id="O$order_id"
+    fi
+
+
+    if ! order_exists "$order_id"; then
+        echo "Error: Order ID $order_id not found!"
+        return
+    fi
+
+    # Mark the order as canceled
+    sed -i "s/^$order_id,.*/$order_id,*,*,*,*,*,*,*,Canceled/" "$ORDERS_FILE"
+    echo "Order $order_id canceled successfully!"
+}
+
+# display all orders
+display_orders() {
+    if [ ! -f "$ORDERS_FILE" ]; then
+        echo "Error: No orders found!"
+        return
+    fi
+
+    echo "All Orders:"
+    while IFS=, read -r order_id customer_name customer_address customer_phone dish_id dish_name quantity total_cost status; do
+        echo "Order ID: $order_id | Customer: $customer_name | Dish: $dish_name | Quantity: $quantity | Total: $total_cost tk | Status: $status"
+    done < "$ORDERS_FILE"
+}
+
+# display all dishes
+display_dishes() {
+    if [ ! -f "$DISHES_FILE" ]; then
+        echo "Error: No dishes available. The menu is empty!"
+        return
+    fi
+
+    echo "All available dishes:"
+    while IFS=, read -r dish_id dish_name dish_description dish_price dish_prep_time; do
+# display in formal way
+    echo "Dish ID: $dish_id | Name: $dish_name | Price: $dish_price tk | Time: $dish_prep_time min"
+    done < "$DISHES_FILE"
+}
+
+# search for dishes by name
+search_dishes() {
+    echo "Enter dish name to search for (part of name):"
+    read search_term
+
+    found=0
+
+    while IFS=, read -r dish_id dish_name dish_description dish_price dish_prep_time; do
+        if [[ "${dish_name,,}" == *"${search_term,,}"* ]]; then
+            echo "Dish ID: $dish_id | Name: $dish_name | Price: $dish_price tk | Time: $dish_prep_time min"
+            found=1
+        fi
+    done < "$DISHES_FILE"
+
+    if [ $found -eq 0 ]; then
+        echo "No dishes found matching '$search_term'."
+    fi
+}
+
+# add a new dish
+add_dish() {
+    echo "Enter Dish ID (e.g., 1, 2, 3):"
+    read dish_id
+    echo "Enter Dish Name:"
+    read dish_name
+    echo "Enter Dish Description:"
+    read dish_description
+    echo "Enter Dish Price (in tk):"
+    read dish_price
+    echo "Enter Dish Preparation Time (in minutes):"
+    read dish_prep_time
+
+    # Save the new dish to the dishes file
+    echo "$dish_id,$dish_name,$dish_description,$dish_price,$dish_prep_time" >> "$DISHES_FILE"
+    echo "Dish '$dish_name' added successfully!"
+}
+
+#   update a dish
+update_dish() {
+    echo "Enter the Dish ID to update (e.g., 1, 2, 3):"
+    read dish_id
+
+    # Check if the dish exists
+    dish_info=$(grep "^$dish_id," "$DISHES_FILE")
+    if [ -z "$dish_info" ]; then
+        echo "Error: Dish not found!"
+        return
+    fi
+
+    echo "Enter new Dish Name (or press Enter to keep the current):"
+    read dish_name
+    if [ -z "$dish_name" ]; then
+        dish_name=$(echo "$dish_info" | cut -d ',' -f 2)
+    fi
+
+    echo "Enter new Dish Description (or press Enter to keep the current):"
+    read dish_description
+    if [ -z "$dish_description" ]; then
+        dish_description=$(echo "$dish_info" | cut -d ',' -f 3)
+    fi
+
+    echo "Enter new Dish Price (or press Enter to keep the current):"
+    read dish_price
+    if [ -z "$dish_price" ]; then
+        dish_price=$(echo "$dish_info" | cut -d ',' -f 4)
+    fi
+
+    echo "Enter new Dish Preparation Time (or press Enter to keep the current):"
+    read dish_prep_time
+    if [ -z "$dish_prep_time" ]; then
+        dish_prep_time=$(echo "$dish_info" | cut -d ',' -f 5)
+    fi
+
+    # Update the dish in the dishes file
+    sed -i "s/^$dish_id,.*/$dish_id,$dish_name,$dish_description,$dish_price,$dish_prep_time/" "$DISHES_FILE"
+    echo "Dish '$dish_name' updated successfully!"
+}
+
+# delete a dish
+delete_dish() {
+    echo "Enter the Dish ID to delete (e.g., 1, 2, 3):"
+    read dish_id
+
+    if ! grep -q "^$dish_id," "$DISHES_FILE"; then
+        echo "Error: Dish not found!"
+        return
+    fi
+
+    # Delete the dish
+    sed -i "/^$dish_id,/d" "$DISHES_FILE"
+    echo "Dish with ID $dish_id deleted successfully!"
+}
+
+# sales report
+generate_sales_report() {
+    total_sales=0
+    echo "Sales Report:"
+    echo "Order details:"
+
+    if [ ! -f "$ORDERS_FILE" ]; then
+        echo "Error: No orders found!"
+        return
+    fi
+
+    #  display and calculate total sales
+    while IFS=, read -r order_id customer_name customer_address customer_phone dish_id dish_name quantity total_cost status; do
+
+        if [[ "$quantity" =~ ^[0-9]+$ ]] && [[ "$total_cost" =~ ^[0-9]+$ ]]; then
+            echo "Order ID: $order_id | Dish: $dish_name | Quantity: $quantity | Total: $total_cost tk"
+            total_sales=$((total_sales + total_cost))
+        else
+            echo "Error: Invalid quantity or total cost for Order ID: $order_id"
+        fi
+    done < "$ORDERS_FILE"
+
+    echo "------------------------------------------------"
+    echo "Total Sales: $total_sales tk"
+}
+
+#   place an order
+place_order() {
+    echo "Enter your name:"
+    read customer_name
+    echo "Enter your address:"
+    read customer_address
+    echo "Enter your contact number:"
+    read customer_phone
+
+    display_dishes
+
+    echo "Enter Dish ID to order (e.g., 1, 2, 3):"
+    read dish_id
+    echo "Enter quantity:"
+    read quantity
+
+    # Fetch the dish details from the dishes file
+    dish_info=$(grep "^$dish_id," "$DISHES_FILE")
+    if [ -z "$dish_info" ]; then
+        echo "Error: Dish not found!"
+        return
+    fi
+
+    # Extract dish details
+    dish_name=$(echo "$dish_info" | cut -d ',' -f 2)
+    dish_price=$(echo "$dish_info" | cut -d ',' -f 4)
+    total_cost=$((dish_price * quantity))
+
+    order_id="O$(($(wc -l < "$ORDERS_FILE") + 1))"
+
+
+    echo "$order_id,$customer_name,$customer_address,$customer_phone,$dish_id,$dish_name,$quantity,$total_cost,Pending" >> "$ORDERS_FILE"
+    echo "Order placed successfully! Your Order ID is: $order_id"
+}
+
+# Admin
+admin_menu() {
+    while true; do
+        echo "Admin Menu:"
+        echo "1. View All Dishes"
+        echo "2. Add New Dish"
+        echo "3. Update Dish"
+        echo "4. Delete Dish"
+        echo "5. Search for Dishes"
+        echo "6. Sales Report"
+        echo "7. Exit"
+        read -p "Enter choice: " choice
+
+        case $choice in
+            1) display_dishes ;;
+            2) add_dish ;;
+            3) update_dish ;;
+            4) delete_dish ;;
+            5) search_dishes ;;
+            6) generate_sales_report ;;
+            7) exit 0 ;;
+            *) echo "Invalid choice!" ;;
+        esac
+    done
+}
+
+# Customer menu
+customer_menu() {
+    while true; do
+        echo "Customer Menu:"
+        echo "1. View All Dishes"
+        echo "2. Place Order"
+        echo "3. Cancel Order"
+        echo "4. View All Orders"
+        echo "5. Search for Dishes"
+        echo "6. Exit"
+        read -p "Enter choice: " choice
+
+        case $choice in
+            1) display_dishes ;;
+            2) place_order ;;
+            3) cancel_order ;;
+            4) display_orders ;;
+            5) search_dishes ;;
+            6) exit 0 ;;
+            *) echo "Invalid choice!" ;;
+        esac
+    done
+}
+
+# Authentication
+authenticate() {
+    echo "Enter username:"
+    read username
+    echo "Enter password:"
+    read -s password
+
+    if [[ "$username" == "$ADMIN_USERNAME" && "$password" == "$ADMIN_PASSWORD" ]]; then
+        echo "Authentication successful!"
+        admin_menu
+    else
+        echo "Invalid username or password!"
+    fi
+}
+
+# Main
+echo "Welcome to Delicious Eats!"
+
+echo "Are you an Admin or Customer? (Enter 'admin' or 'customer')"
+read user_type
+
+if [ "$user_type" == "admin" ]; then
+    authenticate
+elif [ "$user_type" == "customer" ]; then
+    customer_menu
+else
+    echo "Invalid selection! Exiting..."
+    exit 1
+fi
